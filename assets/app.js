@@ -1,11 +1,13 @@
 (function () {
   'use strict';
   var doc = document, root = doc.documentElement;
+  // 고른 밝기가 있으면 적용한다. 고른 적이 없으면 어두운 화면(스타일 기본값)이다
+  try { var saved = localStorage.getItem('theme'); if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved); } catch (e) {}
 
   // 밝은 화면 / 어두운 화면
   doc.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
     b.addEventListener('click', function () {
-      var cur = root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      var cur = root.getAttribute('data-theme') || 'dark';
       var next = cur === 'dark' ? 'light' : 'dark';
       root.setAttribute('data-theme', next);
       try { localStorage.setItem('theme', next); } catch (e) {}
@@ -132,4 +134,12 @@
     window.addEventListener('resize', function () { track.scrollLeft = track.clientWidth * cur; });
     play();
   });
+})();
+
+// 첫 화면에서는 오른쪽 연락처가 대문 사진을 가리지 않도록, 사진을 지나간 뒤에 보여 준다
+(function () {
+  var hero = document.querySelector('.bn-wrap'), box = document.querySelector('.float-tel');
+  if (!box) return;
+  if (!hero || !('IntersectionObserver' in window)) { box.classList.add('is-on'); return; }
+  new IntersectionObserver(function (es) { box.classList.toggle('is-on', !es[0].isIntersecting); }, { rootMargin: '-56px 0px 0px 0px' }).observe(hero);
 })();

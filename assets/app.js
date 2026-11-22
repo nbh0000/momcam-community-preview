@@ -185,3 +185,56 @@
   history.replaceState({ feed: 1 }, '');
   window.addEventListener('popstate', function () { if (feed()) load(location.href, false); });
 })();
+
+/* 가입 화면: 입력하는 동안 아이디·비밀번호 확인 */
+(function () {
+  var form = document.querySelector('form[data-signup]');
+  if (!form) return;
+  var id = form.querySelector('#f-id'), pw = form.querySelector('#f-pw'), pw2 = form.querySelector('#f-pw2');
+  function say(key, ok, msg, input) {
+    var el = form.querySelector('[data-live="' + key + '"]');
+    if (!el) return;
+    var old = el.parentNode.querySelector('.err');
+    if (old && msg) old.hidden = true;
+    el.textContent = msg || '';
+    el.className = 'live' + (msg ? (ok ? ' is-ok' : ' is-bad') : '');
+    if (input) { if (msg && !ok) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid'); }
+  }
+  var timer, ctrl, last = '';
+  id.addEventListener('input', function () {
+    clearTimeout(timer);
+    var v = id.value.trim().toLowerCase();
+    if (!v) { say('id', true, ''); return; }
+    if (!/^[a-z][a-z0-9_]{3,19}$/.test(v)) {
+      say('id', false, /^[^a-z]/.test(v) ? '영문 소문자로 시작해야 합니다.' : v.length < 4 ? '4자 이상이어야 합니다.' : '영문 소문자, 숫자, 밑줄(_)만 쓸 수 있습니다.', id);
+      return;
+    }
+    say('id', true, '확인하는 중입니다.');
+    timer = setTimeout(function () {
+      if (v === last) return;
+      if (ctrl) ctrl.abort();
+      ctrl = 'AbortController' in window ? new AbortController() : null;
+      fetch('/signup/check-id?id=' + encodeURIComponent(v), { headers: { Accept: 'application/json' }, signal: ctrl ? ctrl.signal : undefined })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { if (id.value.trim().toLowerCase() === v) { say('id', j.ok, j.msg, id); last = j.ok ? '' : v; } })
+        .catch(function (e) { if (e.name !== 'AbortError') say('id', true, ''); });
+    }, 400);
+  });
+  function checkPw() {
+    var v = pw.value, u = id.value.trim().toLowerCase();
+    if (!v) say('pw', true, '');
+    else if (v.length < 10) say('pw', false, '10자 이상이어야 합니다. 지금 ' + v.length + '자입니다.', pw);
+    else if (u && v.toLowerCase().indexOf(u) !== -1) say('pw', false, '비밀번호에 아이디를 넣을 수 없습니다.', pw);
+    else if (/^(.)\1+$/.test(v) || ['1234567890', 'qwertyuiop', 'password123', '0123456789', 'abcdefghij'].indexOf(v.toLowerCase()) !== -1) say('pw', false, '너무 쉬운 비밀번호입니다.', pw);
+    else say('pw', true, '쓸 수 있는 비밀번호입니다.', pw);
+    checkPw2();
+  }
+  function checkPw2() {
+    if (!pw2.value) { say('pw2', true, ''); return; }
+    if (pw2.value === pw.value) say('pw2', true, '비밀번호가 같습니다.', pw2);
+    else say('pw2', false, pw.value.indexOf(pw2.value) === 0 ? '' : '비밀번호가 서로 다릅니다.', pw2);
+  }
+  pw.addEventListener('input', checkPw);
+  pw2.addEventListener('input', checkPw2);
+  id.addEventListener('change', function () { if (pw.value) checkPw(); });
+})();

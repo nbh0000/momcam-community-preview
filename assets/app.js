@@ -136,10 +136,52 @@
   });
 })();
 
-// 첫 화면에서는 오른쪽 연락처가 대문 사진을 가리지 않도록, 사진을 지나간 뒤에 보여 준다
+// 첫 화면·게시판: 게시판 탭과 왼쪽 메뉴를 누르면 가운데 목록만 바꾼다(주소도 바뀌어 뒤로 가기·새로고침이 된다)
 (function () {
-  var hero = document.querySelector('.bn-wrap'), box = document.querySelector('.float-tel');
-  if (!box) return;
-  if (!hero || !('IntersectionObserver' in window)) { box.classList.add('is-on'); return; }
-  new IntersectionObserver(function (es) { box.classList.toggle('is-on', !es[0].isIntersecting); }, { rootMargin: '-56px 0px 0px 0px' }).observe(hero);
+  if (!window.fetch || !window.DOMParser || !history.pushState) return;
+  var busy = null;
+  function feed() { return document.querySelector('[data-feed]'); }
+  function mark(path) {
+    document.querySelectorAll('.side-nav a[data-feed-link]').forEach(function (a) {
+      if (a.getAttribute('href') === path) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+  }
+  function load(url, push) {
+    var box = feed();
+    if (!box) { location.href = url; return; }
+    if (busy) busy.abort();
+    busy = new AbortController();
+    box.classList.add('is-loading');
+    box.setAttribute('aria-busy', 'true');
+    fetch(url, { credentials: 'same-origin', signal: busy.signal, headers: { 'X-Requested-With': 'feed' } })
+      .then(function (r) { if (!r.ok && r.status !== 404) throw 0; return r.text(); })
+      .then(function (html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var next = doc.querySelector('[data-feed]');
+        if (!next) { location.href = url; return; }
+        box.replaceWith(next);
+        document.title = doc.title;
+        var u = new URL(url, location.href);
+        if (push) history.pushState({ feed: 1 }, '', u.pathname + u.search);
+        mark(u.pathname);
+        var top = next.getBoundingClientRect().top;
+        if (push && top < 0) next.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        var h = next.querySelector('#feed-h'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+      })
+      .catch(function (e) { if (e && e.name === 'AbortError') return; location.href = url; });
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-feed-link], .feed-more a');
+    if (!a || !feed() || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    load(a.href, true);
+  });
+  document.addEventListener('change', function (e) {
+    var f = e.target.closest('form[data-autosubmit]');
+    if (!f) return;
+    var url = f.action + (f.action.indexOf('?') < 0 ? '?' : '&') + new URLSearchParams(new FormData(f)).toString().replace(/(^|&)sort=new(&|$)/, '$1').replace(/[?&]$/, '');
+    if (feed()) load(url.replace(/\?$/, ''), true); else f.submit();
+  });
+  history.replaceState({ feed: 1 }, '');
+  window.addEventListener('popstate', function () { if (feed()) load(location.href, false); });
 })();

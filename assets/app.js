@@ -238,3 +238,24 @@
   pw2.addEventListener('input', checkPw2);
   id.addEventListener('change', function () { if (pw.value) checkPw(); });
 })();
+
+// 대문 상담 카드: 큰 화면에서 지금 보이는 대문 사진의 글 바로 아래에 붙는다
+(function () {
+  var row = document.querySelector('.bn-row'), card = row && row.querySelector('.cm'), stack = row && row.querySelector('.bn-stack');
+  if (!card || !stack || !window.matchMedia) return;
+  var wide = window.matchMedia('(min-width: 1024px)'), raf = 0;
+  function place() {
+    raf = 0;
+    if (!wide.matches) { card.style.top = ''; return; }
+    var w = stack.clientWidth || 1, i = Math.round(stack.scrollLeft / w), slide = stack.children[i];
+    var txt = slide && slide.querySelector('.bn-text');
+    if (!txt) { card.style.top = ''; return; }
+    card.style.top = Math.round(txt.getBoundingClientRect().bottom - row.getBoundingClientRect().top + 24) + 'px';
+  }
+  function queue() { if (!raf) raf = requestAnimationFrame(place); }
+  stack.addEventListener('scroll', queue, { passive: true });
+  window.addEventListener('resize', queue);
+  if (wide.addEventListener) wide.addEventListener('change', queue);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(queue);
+  place();
+})();
